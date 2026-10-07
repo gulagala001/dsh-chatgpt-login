@@ -1,5 +1,8 @@
 # DSH ChatGPT Login
 
+> **已停止维护。请改用 [V1ki/dsh-plugin-subscriptions](https://github.com/V1ki/dsh-plugin-subscriptions)。**
+> 登录、模型发现及 Fast 等功能已有社区实现，本项目退役以避免重复维护。下文仅保留旧版本说明。
+
 **登录 ChatGPT，渠道和全部可用模型自动出现。**
 
 独立 DSH 小插件，适用于原生 DSH Web、Desktop、TUI 和装有 OMD 的 DSH。
