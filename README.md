@@ -10,7 +10,7 @@
 dsh plugin --profile web add https://github.com/gulagala001/dsh-chatgpt-login/releases/download/v0.1.0/dsh-chatgpt-login-0.1.0.tgz
 ```
 
-桌面版将 `web` 改为 `desktop`，TUI 改为 `tui`。安装后重启 DSH。
+TUI 将 `web` 改为 `tui`。桌面版在「插件 → 安装插件」中输入同一发行包地址。安装后重启 DSH。
 
 ## 使用
 
