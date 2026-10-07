@@ -1,0 +1,7 @@
+node_modules/
+work/
+*.tgz
+.DS_Store
+.env
+auth.json
+.credentials.yaml
