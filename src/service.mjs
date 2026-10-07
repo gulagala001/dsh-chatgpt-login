@@ -13,7 +13,8 @@ export function modelsFromCatalog(document, plan) {
     if (plan && model.available_in_plans?.length && !model.available_in_plans.includes(plan)) return [];
     ids.add(id);
     const entry = { id, name: model.display_name ?? id };
-    if (Number.isSafeInteger(model.context_window) && model.context_window > 0) entry.contextWindow = model.context_window;
+    const contextWindow = [model.max_context_window, model.context_window].find(value => Number.isSafeInteger(value) && value > 0);
+    if (contextWindow !== undefined) entry.contextWindow = contextWindow;
     const input = model.input_modalities?.filter(value => ['text','image'].includes(value));
     if (input?.length) entry.input = input;
     const efforts = Object.fromEntries((model.supported_reasoning_levels ?? []).filter(value => ['minimal','low','medium','high','xhigh','max'].includes(value.effort)).map(value => [value.effort, value.effort]));

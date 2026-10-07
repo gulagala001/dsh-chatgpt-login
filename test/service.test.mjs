@@ -39,6 +39,16 @@ test('catalog handles new model ids, hidden-but-available models, duplicate ids 
   assert.deepEqual(rows.map(m=>m.id),catalog.models.map(m=>m.slug));assert.deepEqual(rows[0].reasoningEfforts,{high:'high'});
 });
 
+test('catalog uses maximum context capacity and falls back to the base window for invalid or absent maxima',()=>{
+  const rows=modelsFromCatalog({models:[
+    {slug:'gpt-6.1-sol',context_window:272000,max_context_window:872000},
+    {slug:'gpt-5.5',context_window:272000,max_context_window:272000},
+    {slug:'base-only',context_window:128000},
+    {slug:'invalid-max',context_window:64000,max_context_window:-1},
+  ]});
+  assert.deepEqual(rows.map(model=>model.contextWindow),[872000,272000,128000,64000]);
+});
+
 test('OAuth prompts reject stale answers, accept callbacks, and allow only official authorization links',async t=>{
   let fx;fx=fixture({begin:async({interaction})=>{
     interaction.notify({message:'继续登录',url:'https://attacker.example/steal'});

@@ -1,5 +1,6 @@
 import { createChatGPTService } from './service.mjs';
 import { createCommand } from './command.mjs';
+import { createFastService } from './fast.mjs';
 
 export const name = 'dsh-chatgpt-login';
 export const inject = ['credentials', 'authorization', 'settings', 'llm'];
@@ -11,12 +12,19 @@ async function readBody(req) {
 }
 function send(res, status, value) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); res.end(JSON.stringify(value)); }
 
-export function createHandler(ctx, service) {
+export function createHandler(ctx, service, fast) {
   return async (req, res) => {
     const denied = ctx.get('connection')?.requestRejection(req);
     if (denied !== undefined || !ctx.get('connection')) { res.writeHead(denied ?? 503); res.end(); return; }
     try {
       const url = new URL(req.url, 'http://localhost');
+      if (url.pathname === '/dsh-chatgpt-login/fast' && fast) {
+        const id = url.searchParams.get('session');
+        if (req.method === 'GET') { send(res, 200, await fast.view(id)); return; }
+        if (req.method !== 'POST') { send(res, 405, { error: '不支持此方法' }); return; }
+        if (req.headers.origin && new URL(req.headers.origin).host !== req.headers.host) { send(res, 403, { error: '请求来源无效' }); return; }
+        send(res, 200, await fast.set(id, await readBody(req))); return;
+      }
       if (url.pathname !== '/dsh-chatgpt-login/api') { send(res, 404, { error: '接口不存在' }); return; }
       if (req.method === 'GET') { send(res, 200, await service.status()); return; }
       if (req.method !== 'POST') { send(res, 405, { error: '不支持此方法' }); return; }
@@ -38,7 +46,8 @@ export function createHandler(ctx, service) {
 
 export function apply(ctx) {
   const service = createChatGPTService(ctx);
-  ctx.inject(['webServer', 'connection'], web => web.effect(() => web.webServer.register({ kind: 'prefix', path: '/dsh-chatgpt-login', handler: createHandler(web, service) })));
+  const fast = createFastService(ctx);
+  ctx.inject(['webServer', 'connection'], web => web.effect(() => web.webServer.register({ kind: 'prefix', path: '/dsh-chatgpt-login', handler: createHandler(web, service, fast) })));
   ctx.inject(['commands'], commands => commands.effect(() => commands.commands.register(createCommand(service))));
-  ctx.effect(() => () => service.close());
+  ctx.effect(() => () => Promise.all([service.close(), fast.close()]));
 }

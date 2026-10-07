@@ -1,0 +1,50 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createFastService, installFastRequests } from '../src/fast.mjs';
+
+test('Fast is persisted per session, rejects stale writes and cannot enable other channels', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-fast-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const sessions = new Map(['first','second','other'].map(id => [id, { id }]));
+  const services = { sessions: { get: id => sessions.get(id) }, sessionProjections: { stateOf: session => ({ pending: { provider: session.id === 'other' ? 'deepseek' : 'openai-codex' }, lastUsed: { provider: 'openai-codex' } }) } };
+  const ctx = { get: name => services[name] }, requests = { ready: () => true, close() {} };
+  const service = createFastService(ctx, { directory, requests });
+  t.after(() => service.close());
+  assert.equal((await service.view('first')).enabled, false);
+  assert.equal((await service.set('first', { enabled: true, expectedRevision: 0 })).enabled, true);
+  assert.equal((await service.view('second')).enabled, false);
+  await assert.rejects(service.set('first', { enabled: false, expectedRevision: 0 }), /已更新/);
+  await assert.rejects(service.set('other', { enabled: true, expectedRevision: 0 }), /仅支持 ChatGPT/);
+  const restored = createFastService(ctx, { directory, requests });
+  assert.equal((await restored.view('first')).enabled, true);
+  assert.equal((await restored.view('second')).enabled, false);
+  assert.equal((await restored.set('first', { enabled: false, expectedRevision: 1 })).enabled, false);
+  await restored.close();
+});
+
+test('Fast reaches both transport payloads without affecting concurrent sessions, reasoning or other providers', async () => {
+  const calls = [], flags = new Map([['first',true],['second',false]]);
+  const models = { streamSimple(model, context, options) { calls.push({model,context,options}); return options; } };
+  let snapshot = { models };
+  const adapter = { current: () => snapshot };
+  const runtime = { adapters: new Map([['openai-codex',{adapter}]]) };
+  const listeners = new Map(), ctx = { llm: runtime, on(name, fn) { listeners.set(name, fn); return () => listeners.delete(name); } };
+  const requests = installFastRequests(ctx, id => flags.get(id));
+  const on = models.streamSimple({ provider:'openai-codex' }, {}, { sessionId:'first', reasoning:'xhigh', onPayload: p => ({...p,keep:true}) });
+  const off = models.streamSimple({ provider:'openai-codex' }, {}, { sessionId:'second', serviceTier:'auto' });
+  flags.set('first',false);
+  assert.equal(on.serviceTier,'priority'); assert.equal(on.reasoning,'xhigh');
+  assert.deepEqual(await on.onPayload({model:'gpt-6.1-sol'}), {model:'gpt-6.1-sol',keep:true,service_tier:'priority'});
+  assert.equal(Object.hasOwn(off,'serviceTier'),false);
+  assert.deepEqual(await off.onPayload({model:'gpt-6.1-sol',service_tier:'auto'}), {model:'gpt-6.1-sol'});
+  const foreign = { sessionId:'first',serviceTier:'auto' };
+  assert.equal(models.streamSimple({provider:'deepseek'}, {}, foreign), foreign);
+  const nextModels = { streamSimple: models.streamSimple };
+  snapshot = {models:nextModels}; adapter.current();
+  requests.close();
+  assert.equal(models.streamSimple({provider:'openai-codex'}, {}, foreign), foreign);
+  assert.equal(listeners.size,0);
+});

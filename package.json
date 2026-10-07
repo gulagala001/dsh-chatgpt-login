@@ -1,6 +1,6 @@
 {
   "name": "dsh-chatgpt-login",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "ChatGPT OAuth login for DeepSeek Harness (DSH), including Web and Desktop",
   "main": "src/index.mjs",

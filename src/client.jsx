@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import css from './style.css';
+import { installFastButton } from './fast-client.jsx';
 
 async function api(input, signal) {
   const response = await fetch('dsh-chatgpt-login/api',input === undefined ? {signal} : {signal,method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)});
@@ -55,4 +56,5 @@ export const inject=['slots'];
 export function apply(ctx){
   ctx.effect(()=>{const style=document.createElement('style');style.dataset.plugin='dsh-chatgpt-login';style.textContent=css;document.head.append(style);return()=>style.remove();});
   ctx.slots.inject('settings.models.footer',()=>ctx.slots.register({name:'settings.models.footer',id:'dsh-chatgpt-login',order:-10},ChatGPTCard));
+  installFastButton(ctx);
 }
